@@ -47,6 +47,23 @@ def download_images(base_url,list_file,base_path):
             print(f"Finished downloading: {url}")
     print(image_names)
 
+def download_list_file(base_url,list_file,base_path):
+    url = f"{base_url}/{list_file}"
+    file = f"{base_path}/{list_file}"
+    #Check file already exists
+    if not os.path.exists(file):
+        print(f"Downloading: {url}")
+        try:
+            res = get_legacy_session().get(url,stream = True,verify=False)
+            if res.status_code == 200:
+                with open(file,'wb') as f:
+                    shutil.copyfileobj(res.raw,f)
+        except KeyboardInterrupt:
+            print(f"Cancelled downloading:{url}, deleting created file")
+            os.remove(file)
+            return
+        print(f"Finished downloading: {url}")
+
 if __name__ == "__main__":
     #If no file path is given write to current directory
     if len(sys.argv) > 3:
