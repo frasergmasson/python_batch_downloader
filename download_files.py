@@ -83,7 +83,7 @@ def download_images(base_url,list_file,base_path):
                 os.remove(file)
                 raise DownloadCancelledException
             print(f"Finished downloading: {url}")
-    print(image_names)
+    print(f"All files in {url} downloaded")
 
 def download_list_file(base_url,list_file,base_path):
     url = f"{base_url}/{list_file}"
@@ -104,8 +104,8 @@ def download_list_file(base_url,list_file,base_path):
 
 if __name__ == "__main__":
     #If no file path is given write to current directory
-    if len(sys.argv) > 3:
-        file_path = sys.argv[3]
+    if len(sys.argv) > 2:
+        file_path = sys.argv[2]
     else:
         file_path = '.'
     try:
