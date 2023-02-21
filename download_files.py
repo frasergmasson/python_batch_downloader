@@ -4,8 +4,10 @@ import sys
 import os
 import urllib3
 import ssl
+from bs4 import BeautifulSoup
 
 
+#Needed to get around SSL issue
 class CustomHttpAdapter (requests.adapters.HTTPAdapter):
     # "Transport adapter" that allows us to use custom ssl_context.
 
@@ -26,8 +28,41 @@ def get_legacy_session():
     session.mount('https://', CustomHttpAdapter(ctx))
     return session
 
+
+def get_directory_items(url):
+    page = get_legacy_session().get(url,verify=False).text
+    soup = BeautifulSoup(page,'html.parser')
+    #Remove parent directory and column sorting buttons
+    return [node.get('href') for node in soup.find_all('a') if '?' not in node.get('href') and node.string != "Parent Directory"]
+
+#Any item without a '.' is a directory, not a file
+#If a directory contains no directories it is a root node
+def is_root_node(items):
+    return len([item for item in items if '.' not in item]) == 0
+
+#List file should be the only .txt file in a directory
+def get_list_file_name(items):
+    return [item for item in items if '.txt' in item][0]
+
+def recursive_traverse(url,path):
+    items = get_directory_items(url)
+    if(is_root_node(items)):
+        #Directory contains images
+        list_file_name = get_list_file_name(items)
+        download_list_file(url,list_file_name,path)
+        download_images(url,list_file_name,path)
+        return
+    
+    #Directory contains directories
+    for item in items:
+        new_directory_path = f"{path}/{item}"
+        os.mkdir(new_directory_path)
+        recursive_traverse(f"{url}/{item}",new_directory_path)
+
+
+
 def download_images(base_url,list_file,base_path):
-    with open(list_file) as f:
+    with open(f"{base_path}/{list_file}") as f:
         image_names = f.read().split("\n")
     for name in image_names:
         url = f"{base_url}/{name}"
@@ -54,10 +89,10 @@ def download_list_file(base_url,list_file,base_path):
     if not os.path.exists(file):
         print(f"Downloading: {url}")
         try:
-            res = get_legacy_session().get(url,stream = True,verify=False)
+            res = get_legacy_session().get(url,verify=False)
             if res.status_code == 200:
-                with open(file,'wb') as f:
-                    shutil.copyfileobj(res.raw,f)
+                with open(file,'w') as f:
+                    f.write(res._content.decode("utf-8"))
         except KeyboardInterrupt:
             print(f"Cancelled downloading:{url}, deleting created file")
             os.remove(file)
@@ -70,4 +105,4 @@ if __name__ == "__main__":
         file_path = sys.argv[3]
     else:
         file_path = '.'
-    download_images(sys.argv[1],sys.argv[2],file_path)
+    recursive_traverse(sys.argv[1],file_path)
