@@ -6,6 +6,9 @@ import urllib3
 import ssl
 from bs4 import BeautifulSoup
 
+class DownloadCancelledException(Exception):
+    pass
+
 
 #Needed to get around SSL issue
 class CustomHttpAdapter (requests.adapters.HTTPAdapter):
@@ -78,7 +81,7 @@ def download_images(base_url,list_file,base_path):
             except KeyboardInterrupt:
                 print(f"Cancelled downloading:{url}, deleting created file")
                 os.remove(file)
-                return
+                raise DownloadCancelledException
             print(f"Finished downloading: {url}")
     print(image_names)
 
@@ -96,7 +99,7 @@ def download_list_file(base_url,list_file,base_path):
         except KeyboardInterrupt:
             print(f"Cancelled downloading:{url}, deleting created file")
             os.remove(file)
-            return
+            raise DownloadCancelledException
         print(f"Finished downloading: {url}")
 
 if __name__ == "__main__":
@@ -105,4 +108,8 @@ if __name__ == "__main__":
         file_path = sys.argv[3]
     else:
         file_path = '.'
-    recursive_traverse(sys.argv[1],file_path)
+    try:
+        recursive_traverse(sys.argv[1],file_path)
+        print("Downloading completed")
+    except DownloadCancelledException:
+        pass
