@@ -5,6 +5,8 @@ import os
 import urllib3
 import ssl
 from bs4 import BeautifulSoup
+import getopt
+import argparse
 
 class DownloadCancelledException(Exception):
     pass
@@ -47,13 +49,13 @@ def is_root_node(items):
 def get_list_file_name(items):
     return [item for item in items if '.txt' in item][0]
 
-def recursive_traverse(url,path,single_directory_mode):
+def recursive_traverse(url,path,single_directory_mode,offset,step):
     items = get_directory_items(url)
     if(is_root_node(items)):
         #Directory contains images
         list_file_name = get_list_file_name(items)
-        download_list_file(url,list_file_name,path)
-        download_images(url,list_file_name,path)
+        list_file = download_list_file(url,list_file_name,path,offset=offset,step=step)
+        download_images(url,list_file,path)
         return
     
     #Directory contains directories
@@ -64,12 +66,12 @@ def recursive_traverse(url,path,single_directory_mode):
             os.mkdir(new_directory_path)
         else:
             new_directory_path = path
-        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode)
+        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode,offset=offset,step=step)
 
 
 
 def download_images(base_url,list_file,base_path):
-    with open(f"{base_path}/{list_file}") as f:
+    with open(list_file) as f:
         image_names = f.read().split("\n")
     for name in image_names:
         url = f"{base_url}/{name}"
@@ -89,7 +91,12 @@ def download_images(base_url,list_file,base_path):
             print(f"Finished downloading: {url}")
     print(f"All files in {url} downloaded")
 
-def download_list_file(base_url,list_file,base_path):
+#Modify list file name to include offset and step
+def modify_list_file_name(file_name,offset,step):
+    #-8 index cuts out _all.txt
+    return f"{file_name[:-8]}_offs_{offset}_step_{step}.txt"
+
+def download_list_file(base_url,list_file,base_path,offset=0,step=0):
     url = f"{base_url}/{list_file}"
     file = f"{base_path}/{list_file}"
     #Check file already exists
@@ -98,30 +105,32 @@ def download_list_file(base_url,list_file,base_path):
         try:
             res = get_legacy_session().get(url,verify=False)
             if res.status_code == 200:
+                #Apply step and offset to list file
+                data = res._content.decode("utf-8")
+                if offset !=0 or step!=0:
+                    data = data.split("\n")
+                    data = "\n".join([data[i] for i in range(offset,len(data),step)])
+                    file = modify_list_file_name(file,offset,step)
                 with open(file,'w') as f:
-                    f.write(res._content.decode("utf-8"))
+                    f.write(data)
         except KeyboardInterrupt:
             print(f"Cancelled downloading:{url}, deleting created file")
             os.remove(file)
             raise DownloadCancelledException
         print(f"Finished downloading: {url}")
+        return file
 
 if __name__ == "__main__":
-    #Seperate arguments and options
-    opts = [opt for opt in sys.argv[1:] if opt.startswith("-")]
-    args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
-
-    #If no file path is given write to current directory
-    if len(args) > 1:
-        file_path = args[1]
-    else:
-        file_path = '.'
-
-    #check for single directory argument
-    single_directory_mode = "-sd" in opts
+    parser = argparse.ArgumentParser()
+    parser.add_argument('base_url')
+    parser.add_argument('-f','--file_path',default=".")
+    parser.add_argument('-s',"--single_directory_mode",action='store_true')
+    parser.add_argument('--step',type=int)
+    parser.add_argument('--offset',type=int)
+    args = parser.parse_args()
 
     try:
-        recursive_traverse(args[0],file_path,single_directory_mode)
+        recursive_traverse(args.base_url,args.file_path,args.single_directory_mode,args.offset,args.step)
         print("Downloading completed")
     except DownloadCancelledException:
         pass
