@@ -47,7 +47,7 @@ def is_root_node(items):
 def get_list_file_name(items):
     return [item for item in items if '.txt' in item][0]
 
-def recursive_traverse(url,path):
+def recursive_traverse(url,path,single_directory_mode):
     items = get_directory_items(url)
     if(is_root_node(items)):
         #Directory contains images
@@ -57,10 +57,14 @@ def recursive_traverse(url,path):
         return
     
     #Directory contains directories
+    #If in single directory mode, new directory is not created
     for item in items:
-        new_directory_path = f"{path}/{item}"
-        os.mkdir(new_directory_path)
-        recursive_traverse(f"{url}/{item}",new_directory_path)
+        if not single_directory_mode:
+            new_directory_path = f"{path}/{item}"
+            os.mkdir(new_directory_path)
+        else:
+            new_directory_path = path
+        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode)
 
 
 
@@ -103,13 +107,21 @@ def download_list_file(base_url,list_file,base_path):
         print(f"Finished downloading: {url}")
 
 if __name__ == "__main__":
+    #Seperate arguments and options
+    opts = [opt for opt in sys.argv[1:] if opt.startswith("-")]
+    args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
+
     #If no file path is given write to current directory
-    if len(sys.argv) > 2:
-        file_path = sys.argv[2]
+    if len(args) > 1:
+        file_path = args[1]
     else:
         file_path = '.'
+
+    #check for single directory argument
+    single_directory_mode = "-sd" in opts
+
     try:
-        recursive_traverse(sys.argv[1],file_path)
+        recursive_traverse(args[0],file_path,single_directory_mode)
         print("Downloading completed")
     except DownloadCancelledException:
         pass
