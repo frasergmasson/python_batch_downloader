@@ -125,8 +125,8 @@ if __name__ == "__main__":
     parser.add_argument('base_url')
     parser.add_argument('-f','--file_path',default=".")
     parser.add_argument('-s',"--single_directory_mode",action='store_true')
-    parser.add_argument('--step',type=int)
-    parser.add_argument('--offset',type=int)
+    parser.add_argument('--step',type=int,default=0)
+    parser.add_argument('--offset',type=int,default=0)
     args = parser.parse_args()
 
     try:
