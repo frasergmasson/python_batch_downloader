@@ -99,6 +99,8 @@ def modify_list_file_name(file_name,offset,step):
 def download_list_file(base_url,list_file,base_path,offset=0,step=0):
     url = f"{base_url}/{list_file}"
     file = f"{base_path}/{list_file}"
+    if step != 0 or offset !=0:
+        file = modify_list_file_name(file,offset,step)
     #Check file already exists
     if not os.path.exists(file):
         print(f"Downloading: {url}")
@@ -110,7 +112,6 @@ def download_list_file(base_url,list_file,base_path,offset=0,step=0):
                 if offset !=0 or step!=0:
                     data = data.split("\n")
                     data = "\n".join([data[i] for i in range(offset,len(data),step)])
-                    file = modify_list_file_name(file,offset,step)
                 with open(file,'w') as f:
                     f.write(data)
         except KeyboardInterrupt:
@@ -118,7 +119,7 @@ def download_list_file(base_url,list_file,base_path,offset=0,step=0):
             os.remove(file)
             raise DownloadCancelledException
         print(f"Finished downloading: {url}")
-        return file
+    return file
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
