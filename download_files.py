@@ -1,12 +1,11 @@
 import requests
 import shutil
-import sys
 import os
 import urllib3
 import ssl
 from bs4 import BeautifulSoup
-import getopt
 import argparse
+import random
 
 class DownloadCancelledException(Exception):
     pass
@@ -49,24 +48,26 @@ def is_root_node(items):
 def get_list_file_name(items):
     return [item for item in items if '.txt' in item][0]
 
-def recursive_traverse(url,path,single_directory_mode,offset,step):
+def recursive_traverse(url,path,single_directory_mode,n_images):
+    print(n_images)
     items = get_directory_items(url)
     if(is_root_node(items)):
         #Directory contains images
         list_file_name = get_list_file_name(items)
-        list_file = download_list_file(url,list_file_name,path,offset=offset,step=step)
+        list_file = download_list_file(url,list_file_name,path,n_images=n_images)
         download_images(url,list_file,path)
         return
     
     #Directory contains directories
     #If in single directory mode, new directory is not created
+    n_images_child = n_images/len(items) #Number of images needed from each child directory
     for item in items:
         if not single_directory_mode:
             new_directory_path = f"{path}/{item}"
             os.mkdir(new_directory_path)
         else:
             new_directory_path = path
-        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode,offset=offset,step=step)
+        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode,n_images=n_images_child)
 
 
 
@@ -96,11 +97,9 @@ def modify_list_file_name(file_name,offset,step):
     #-8 index cuts out _all.txt
     return f"{file_name[:-8]}_offs_{offset}_step_{step}.txt"
 
-def download_list_file(base_url,list_file,base_path,offset=0,step=0):
+def download_list_file(base_url,list_file,base_path,n_images):
     url = f"{base_url}/{list_file}"
     file = f"{base_path}/{list_file}"
-    if step != 0 or offset !=0:
-        file = modify_list_file_name(file,offset,step)
     #Check file already exists
     if not os.path.exists(file):
         print(f"Downloading: {url}")
@@ -109,9 +108,13 @@ def download_list_file(base_url,list_file,base_path,offset=0,step=0):
             if res.status_code == 200:
                 #Apply step and offset to list file
                 data = res._content.decode("utf-8")
-                if offset !=0 or step!=0:
+                if n_images!=None:
                     data = data.split("\n")
-                    data = "\n".join([data[i] for i in range(offset,len(data),step)])
+                    #Chance of each image being selected such that it is likely that n images are selected from this directory
+                    chance = n_images/len(data)
+                    print(f"{chance} / {len(data)}")
+                    randoms = [random.random() for i in range(len(data))]
+                    data = "\n".join([file for file,p in zip(data,randoms) if p < chance])
                 with open(file,'w') as f:
                     f.write(data)
         except KeyboardInterrupt:
@@ -126,12 +129,11 @@ if __name__ == "__main__":
     parser.add_argument('base_url')
     parser.add_argument('-f','--file_path',default=".")
     parser.add_argument('-s',"--single_directory_mode",action='store_true')
-    parser.add_argument('--step',type=int,default=0)
-    parser.add_argument('--offset',type=int,default=0)
+    parser.add_argument('-n','--number_images',default=None,type=int)
     args = parser.parse_args()
 
     try:
-        recursive_traverse(args.base_url,args.file_path,args.single_directory_mode,args.offset,args.step)
+        recursive_traverse(args.base_url,args.file_path,args.single_directory_mode,args.number_images)
         print("Downloading completed")
     except DownloadCancelledException:
         pass
