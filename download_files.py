@@ -46,37 +46,45 @@ def is_root_node(items):
 
 #List file should be the only .txt file in a directory
 def get_list_file_name(items):
-    return [item for item in items if '.txt' in item][0]
+    text_files = [item for item in items if '.txt' in item]
+    #Avoid location files
+    return text_files[0] if len(text_files)>0 and not "_loc" in text_files[0] else None
 
-def recursive_traverse(url,path,single_directory_mode,n_images):
-    print(n_images)
+def recursive_traverse(url,path,single_directory_mode,n_images,relative_name=""):
     items = get_directory_items(url)
     if(is_root_node(items)):
         #Directory contains images
         list_file_name = get_list_file_name(items)
-        list_file = download_list_file(url,list_file_name,path,n_images=n_images)
-        download_images(url,list_file,path)
+        if list_file_name != None:
+            list_file = download_list_file(url,list_file_name,path,n_images=n_images)
+        else:
+            list_file = create_list_file(items,path,n_images,relative_name)
+        if list_file:
+            download_images(url,list_file,path,relative_name)
         return
     
     #Directory contains directories
     #If in single directory mode, new directory is not created
     n_images_child = n_images/len(items) #Number of images needed from each child directory
     for item in items:
+        child_relative_name = relative_name
         if not single_directory_mode:
             new_directory_path = f"{path}/{item}"
             os.mkdir(new_directory_path)
         else:
             new_directory_path = path
-        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode,n_images=n_images_child)
+            #Remove slashes
+            child_relative_name = (relative_name + item[:-1])
+        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode,n_images=n_images_child,relative_name=child_relative_name)
 
 
 
-def download_images(base_url,list_file,base_path):
+def download_images(base_url,list_file,base_path,relative_name=""):
     with open(list_file) as f:
         image_names = f.read().split("\n")
     for name in image_names:
         url = f"{base_url}/{name}"
-        file = f"{base_path}/{name}"
+        file = f"{base_path}/{relative_name}_{name}"
         #Check file already exists
         if not os.path.exists(file):
             print(f"Downloading: {url}")
@@ -92,10 +100,20 @@ def download_images(base_url,list_file,base_path):
             print(f"Finished downloading: {url}")
     print(f"All files in {url} downloaded")
 
-#Modify list file name to include offset and step
-def modify_list_file_name(file_name,offset,step):
-    #-8 index cuts out _all.txt
-    return f"{file_name[:-8]}_offs_{offset}_step_{step}.txt"
+def create_list_file(items,base_path,n_images,relative_name):
+    file = f"{base_path}/{relative_name}.txt"
+    if not os.path.exists(file):
+        image_files = [item for item in items if ".JPG" in item]
+        #Chance of each image being selected such that it is likely that n images are selected from this directory
+        chance = n_images/len(image_files)
+        randoms = [random.random() for i in range(len(image_files))]
+        data = "\n".join([file for file,p in zip(image_files,randoms) if p < chance])
+        #If no images are included in the file, do not create it
+        if len(data) == 0:
+            return None
+        with open(file,'w') as f:
+            f.write(data)
+    return file
 
 def download_list_file(base_url,list_file,base_path,n_images):
     url = f"{base_url}/{list_file}"
@@ -112,7 +130,6 @@ def download_list_file(base_url,list_file,base_path,n_images):
                     data = data.split("\n")
                     #Chance of each image being selected such that it is likely that n images are selected from this directory
                     chance = n_images/len(data)
-                    print(f"{chance} / {len(data)}")
                     randoms = [random.random() for i in range(len(data))]
                     data = "\n".join([file for file,p in zip(data,randoms) if p < chance])
                 with open(file,'w') as f:
