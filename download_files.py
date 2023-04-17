@@ -6,6 +6,7 @@ import ssl
 from bs4 import BeautifulSoup
 import argparse
 import random
+import math
 
 class DownloadCancelledException(Exception):
     pass
@@ -39,6 +40,12 @@ def get_directory_items(url):
     #Remove parent directory and column sorting buttons
     return [node.get('href') for node in soup.find_all('a') if '?' not in node.get('href') and node.string != "Parent Directory"]
 
+def count_root_directories(url):
+    items = get_directory_items(url)
+    if(is_root_node(items)):
+        return 1
+    return sum([count_root_directories(f"{url}/{item}") for item in items])
+
 #Any item without a '.' is a directory, not a file
 #If a directory contains no directories it is a root node
 def is_root_node(items):
@@ -65,7 +72,6 @@ def recursive_traverse(url,path,single_directory_mode,n_images,relative_name="")
     
     #Directory contains directories
     #If in single directory mode, new directory is not created
-    n_images_child = n_images/len(items) #Number of images needed from each child directory
     for item in items:
         child_relative_name = relative_name
         if not single_directory_mode:
@@ -75,7 +81,7 @@ def recursive_traverse(url,path,single_directory_mode,n_images,relative_name="")
             new_directory_path = path
             #Remove slashes
             child_relative_name = (relative_name + item[:-1])
-        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode,n_images=n_images_child,relative_name=child_relative_name)
+        recursive_traverse(f"{url}/{item}",new_directory_path,single_directory_mode,n_images=n_images,relative_name=child_relative_name)
 
 
 
@@ -149,8 +155,11 @@ if __name__ == "__main__":
     parser.add_argument('-n','--number_images',default=None,type=int)
     args = parser.parse_args()
 
+    n_root_dirs = count_root_directories(args.base_url)
+    images_per_dir = math.ceil(args.number_images/n_root_dirs)
+
     try:
-        recursive_traverse(args.base_url,args.file_path,args.single_directory_mode,args.number_images)
+        recursive_traverse(args.base_url,args.file_path,args.single_directory_mode,images_per_dir)
         print("Downloading completed")
     except DownloadCancelledException:
         pass
